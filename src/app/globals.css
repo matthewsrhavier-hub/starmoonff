@@ -19,6 +19,8 @@
     --sidebar-width: 72px;
     --content-gutter: clamp(1rem, 3vw, 2rem);
     --content-offset: calc(var(--sidebar-width) + var(--content-gutter));
+    /* Topo: safe area + folga (PWA aumenta no display-mode standalone) */
+    --app-top-inset: max(0.65rem, env(safe-area-inset-top, 0px));
 
     /* Typography colors */
     --text-primary: #ffffff;
@@ -237,6 +239,22 @@
     background-color: var(--bg-primary);
     min-height: 100vh;
     min-height: 100dvh;
+  }
+
+  /* PWA instalado: espaço antes do conteúdo (status bar / notch) */
+  @media (display-mode: standalone), (display-mode: fullscreen) {
+    :root {
+      --app-top-inset: calc(env(safe-area-inset-top, 0px) + 1.25rem);
+    }
+
+    body {
+      padding-top: var(--app-top-inset);
+    }
+
+    /* Evita somar duas vezes no header mobile (body já reservou o espaço) */
+    .sm-mobile-topbar {
+      padding-top: 0.65rem !important;
+    }
   }
 
   .hero-gradient-bottom {

@@ -148,7 +148,7 @@ export function ProfileMenu({
           className={cn(
             'profile-menu fixed z-[120] w-[252px]',
             menuAlign === 'mobile'
-              ? 'right-3 top-[calc(env(safe-area-inset-top)+3.25rem)]'
+              ? 'right-3 top-[calc(var(--app-top-inset)+3.25rem)]'
               : 'left-[68px] top-3'
           )}
         >

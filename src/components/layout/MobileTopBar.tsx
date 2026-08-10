@@ -45,10 +45,10 @@ export function MobileTopBar({ overlay = false }: MobileTopBarProps) {
   return (
     <header
       className={cn(
-        'z-50 md:hidden pointer-events-none',
+        'sm-mobile-topbar z-50 md:hidden pointer-events-none',
         overlay
-          ? 'absolute top-0 left-0 right-0 pt-[max(0.65rem,env(safe-area-inset-top))]'
-          : 'sticky top-0 pt-[max(0.65rem,env(safe-area-inset-top))] bg-gradient-to-b from-black via-black/90 to-transparent'
+          ? 'absolute top-0 left-0 right-0 pt-[var(--app-top-inset)]'
+          : 'sticky top-0 pt-[var(--app-top-inset)] bg-gradient-to-b from-black via-black/90 to-transparent'
       )}
     >
       <div className="pointer-events-auto flex items-center gap-2.5 px-3 pb-2.5">
