@@ -9,6 +9,7 @@ import { ContinueWatchingRow } from '@/components/content/ContinueWatchingRow';
 import { SkeletonRow } from '@/components/content/CategoryRow';
 import { Top10Row } from '@/components/content/Top10Row';
 import { GENRES, TV_GENRES } from '@/lib/constants';
+import type { CatalogBundle } from '@/services/catalog';
 import type { Content } from '@/types/content';
 
 function isBlockedTitle(item: Content) {
@@ -34,11 +35,14 @@ function topRated(items: Content[]) {
     .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
 }
 
+function preferCustomThenBrowse(custom: Content[], browse: Content[], limit: number) {
+  if (custom.length >= limit) return custom.slice(0, limit);
+  const ids = new Set(custom.map((item) => item.id));
+  return [...custom, ...browse.filter((item) => !ids.has(item.id))].slice(0, limit);
+}
+
 export default function HomePage() {
-  const [data, setData] = useState<{
-    myCatalogMovies: Content[];
-    myCatalogSeries: Content[];
-  } | null>(null);
+  const [data, setData] = useState<CatalogBundle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,9 +52,7 @@ export default function HomePage() {
       try {
         const { loadHomeCatalog } = await import('@/services/catalog');
         const catalog = await loadHomeCatalog();
-        if (!cancelled) {
-          setData(catalog);
-        }
+        if (!cancelled) setData(catalog);
       } catch (err) {
         console.error('Erro ao carregar catálogo:', err);
       } finally {
@@ -63,41 +65,59 @@ export default function HomePage() {
     };
   }, []);
 
+  const customMovies = useMemo(
+    () => (data?.customMovies || []).filter((item) => !isBlockedTitle(item)),
+    [data]
+  );
+  const customSeries = useMemo(
+    () => (data?.customSeries || []).filter((item) => !isBlockedTitle(item)),
+    [data]
+  );
   const movies = useMemo(
-    () => (data?.myCatalogMovies || []).filter((item) => !isBlockedTitle(item)),
+    () => (data?.browseMovies || []).filter((item) => !isBlockedTitle(item)),
     [data]
   );
   const series = useMemo(
-    () => (data?.myCatalogSeries || []).filter((item) => !isBlockedTitle(item)),
+    () => (data?.browseSeries || []).filter((item) => !isBlockedTitle(item)),
     [data]
   );
 
+  const added = useMemo(
+    () => recentFirst([...customMovies, ...customSeries]),
+    [customMovies, customSeries]
+  );
+
   const heroItems = useMemo(
-    () => recentFirst([...movies, ...series]).slice(0, 5),
-    [movies, series]
+    () => preferCustomThenBrowse(added, recentFirst([...movies, ...series]), 5),
+    [added, movies, series]
   );
 
   const featured = useMemo(
-    () => topRated([...movies, ...series]).slice(0, 12),
-    [movies, series]
+    () => preferCustomThenBrowse(added, topRated([...movies, ...series]), 12),
+    [added, movies, series]
   );
 
   const top10 = useMemo(
-    () => topRated([...movies, ...series]).slice(0, 10),
-    [movies, series]
+    () => preferCustomThenBrowse(added, topRated([...movies, ...series]), 10),
+    [added, movies, series]
   );
 
   const rows = useMemo(() => {
     const list: { title: string; href?: string; items: Content[]; variant?: 'poster' | 'backdrop' }[] = [
       {
+        title: 'Adicionados',
+        href: '/movies',
+        items: added.slice(0, 24),
+      },
+      {
         title: 'Filmes',
         href: '/movies',
-        items: movies.slice(0, 18),
+        items: (customMovies.length > 0 ? customMovies : movies).slice(0, 18),
       },
       {
         title: 'Séries',
         href: '/series',
-        items: series.slice(0, 18),
+        items: (customSeries.length > 0 ? customSeries : series).slice(0, 18),
       },
       {
         title: 'Lançamentos',
@@ -190,7 +210,7 @@ export default function HomePage() {
     ];
 
     return list.filter((row) => row.items.length > 0);
-  }, [movies, series]);
+  }, [added, customMovies, customSeries, movies, series]);
 
   if (isLoading) {
     return (

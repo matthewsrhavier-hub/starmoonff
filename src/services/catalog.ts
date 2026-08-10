@@ -2,6 +2,16 @@ import type { Content } from '@/types/content';
 import { getCustomMovies, getCustomSeries } from '@/services/customContent';
 import { tmdb } from '@/services/tmdb';
 
+export type CatalogBundle = {
+  /** Filmes que você adicionou no admin/Supabase */
+  customMovies: Content[];
+  /** Séries que você adicionou no admin/Supabase */
+  customSeries: Content[];
+  /** Catálogo para fileiras (seus itens + TMDB, sem duplicar) */
+  browseMovies: Content[];
+  browseSeries: Content[];
+};
+
 function withMediaType(items: Content[], mediaType: 'movie' | 'tv'): Content[] {
   return items.map((item) => ({
     ...item,
@@ -65,28 +75,58 @@ async function loadTmdbSeries(): Promise<Content[]> {
   );
 }
 
-/** Filmes: catálogo próprio primeiro, completado com populares do TMDB. */
-export async function loadCatalogMovies(): Promise<Content[]> {
-  const [custom, fromTmdb] = await Promise.all([
-    getCustomMovies().catch((err) => {
-      console.error('[catalog] Falha no custom movies:', err);
-      return [] as Content[];
-    }),
-    loadTmdbMovies().catch((err) => {
-      console.error('[catalog] Falha no TMDB movies:', err);
-      return [] as Content[];
-    }),
-  ]);
-
+function mergePreferCustom(custom: Content[], fromTmdb: Content[]): Content[] {
   const customIds = new Set(custom.map((item) => item.id));
   return [...custom, ...fromTmdb.filter((item) => !customIds.has(item.id))];
 }
 
-/** Séries: catálogo próprio primeiro, completado com populares do TMDB. */
+/** Filmes adicionados (sem misturar TMDB). */
+export async function loadCatalogMovies(): Promise<Content[]> {
+  try {
+    const custom = await getCustomMovies();
+    if (custom.length > 0) return custom;
+  } catch (err) {
+    console.error('[catalog] Falha no custom movies:', err);
+  }
+
+  try {
+    return await loadTmdbMovies();
+  } catch (err) {
+    console.error('[catalog] Falha no TMDB movies:', err);
+    return [];
+  }
+}
+
+/** Séries adicionadas (sem misturar TMDB). */
 export async function loadCatalogSeries(): Promise<Content[]> {
-  const [custom, fromTmdb] = await Promise.all([
+  try {
+    const custom = await getCustomSeries();
+    if (custom.length > 0) return custom;
+  } catch (err) {
+    console.error('[catalog] Falha no custom series:', err);
+  }
+
+  try {
+    return await loadTmdbSeries();
+  } catch (err) {
+    console.error('[catalog] Falha no TMDB series:', err);
+    return [];
+  }
+}
+
+/** Home: separa o que você adicionou do browse TMDB. */
+export async function loadHomeCatalog(): Promise<CatalogBundle> {
+  const [customMovies, customSeries, tmdbMovies, tmdbSeries] = await Promise.all([
+    getCustomMovies().catch((err) => {
+      console.error('[catalog] Falha no custom movies:', err);
+      return [] as Content[];
+    }),
     getCustomSeries().catch((err) => {
       console.error('[catalog] Falha no custom series:', err);
+      return [] as Content[];
+    }),
+    loadTmdbMovies().catch((err) => {
+      console.error('[catalog] Falha no TMDB movies:', err);
       return [] as Content[];
     }),
     loadTmdbSeries().catch((err) => {
@@ -95,18 +135,10 @@ export async function loadCatalogSeries(): Promise<Content[]> {
     }),
   ]);
 
-  const customIds = new Set(custom.map((item) => item.id));
-  return [...custom, ...fromTmdb.filter((item) => !customIds.has(item.id))];
-}
-
-/** Home: custom se existir; senão popular/trending do TMDB. */
-export async function loadHomeCatalog(): Promise<{
-  myCatalogMovies: Content[];
-  myCatalogSeries: Content[];
-}> {
-  const [myCatalogMovies, myCatalogSeries] = await Promise.all([
-    loadCatalogMovies(),
-    loadCatalogSeries(),
-  ]);
-  return { myCatalogMovies, myCatalogSeries };
+  return {
+    customMovies,
+    customSeries,
+    browseMovies: mergePreferCustom(customMovies, tmdbMovies),
+    browseSeries: mergePreferCustom(customSeries, tmdbSeries),
+  };
 }
