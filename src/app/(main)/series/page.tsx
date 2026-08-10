@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { tmdb } from '@/services/tmdb';
-import { getCustomSeries } from '@/services/customContent';
+import { loadCatalogSeries } from '@/services/catalog';
 import { HeroSection, SkeletonHero } from '@/components/content/HeroSection';
 import { CatalogPageBody, CatalogSection } from '@/components/content/CatalogSection';
 import { ContentGrid } from '@/components/content/ContentGrid';
@@ -17,10 +17,15 @@ export default function SeriesPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getCustomSeries().then((data) => {
-      setMySeries(data);
-      setIsLoading(false);
-    }).catch(console.error);
+    loadCatalogSeries()
+      .then((data) => {
+        setMySeries(data);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setIsLoading(false);
+      });
 
     tmdb.getGenres('tv').then(data => setGenres(data.genres || [])).catch(console.error);
   }, []);

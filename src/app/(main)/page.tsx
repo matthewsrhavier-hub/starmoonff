@@ -34,13 +34,6 @@ function topRated(items: Content[]) {
     .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
 }
 
-function splitCatalog(allCustom: Content[]) {
-  return {
-    myCatalogMovies: allCustom.filter((item) => item.media_type?.toLowerCase() === 'movie'),
-    myCatalogSeries: allCustom.filter((item) => item.media_type?.toLowerCase() === 'tv'),
-  };
-}
-
 export default function HomePage() {
   const [data, setData] = useState<{
     myCatalogMovies: Content[];
@@ -53,20 +46,10 @@ export default function HomePage() {
 
     (async () => {
       try {
-        const { getCachedCustomContent, getCustomContent } = await import(
-          '@/services/customContent'
-        );
-        const cached = getCachedCustomContent();
-        if (cached && !cancelled) {
-          setData(splitCatalog(cached));
-          setIsLoading(false);
-        } else if (!cancelled) {
-          setIsLoading(true);
-        }
-
-        const allCustom = await getCustomContent();
+        const { loadHomeCatalog } = await import('@/services/catalog');
+        const catalog = await loadHomeCatalog();
         if (!cancelled) {
-          setData(splitCatalog(allCustom));
+          setData(catalog);
         }
       } catch (err) {
         console.error('Erro ao carregar catálogo:', err);
