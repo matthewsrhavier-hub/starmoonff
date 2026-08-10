@@ -468,9 +468,22 @@ export default function WatchPage() {
   return (
     <div className="min-h-[100dvh] bg-black">
       {isPlaying ? (
-        <div className="fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black overflow-hidden">
+        <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black overflow-hidden">
+          {isLoadingPlayer || (type === 'movie' && !playerCode && isLoading) ? (
+            <div className="w-full h-full flex items-center justify-center text-white/70">
+              Carregando player...
+            </div>
+          ) : (
           <VideoPlayer
-            playerCode={playerCode || superflixApi.getEmbedUrl(type, imdbId || String(id), selectedSeason, selectedEpisode)}
+            playerCode={
+              playerCode ||
+              superflixApi.getEmbedUrl(
+                type,
+                type === 'movie' ? (imdbId || String(id)) : String(id),
+                selectedSeason,
+                selectedEpisode
+              )
+            }
             mediaType={type}
             season={type === 'tv' ? selectedSeason : undefined}
             episode={type === 'tv' ? selectedEpisode : undefined}
@@ -494,7 +507,9 @@ export default function WatchPage() {
               })
             }
             className="w-full h-full"
+            forceMobileLandscape
           />
+          )}
         </div>
       ) : (
         <>

@@ -64,6 +64,8 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   onClose?: () => void;
   className?: string;
+  /** No celular, força layout horizontal (CSS + Screen Orientation API) */
+  forceMobileLandscape?: boolean;
 }
 
 function extractPlayerSrc(
@@ -443,6 +445,7 @@ export function VideoPlayer({
   onEnded,
   onClose,
   className,
+  forceMobileLandscape = false,
 }: VideoPlayerProps) {
   const playerSrc = extractPlayerSrc(playerCode, season, episode);
   const mode = detectMode(playerSrc);
@@ -1018,6 +1021,47 @@ export function VideoPlayer({
     };
   }, [resetControlsTimeout]);
 
+  // Celular: trava / força orientação horizontal enquanto o player está aberto
+  useEffect(() => {
+    if (!forceMobileLandscape || typeof window === 'undefined') return;
+
+    const isMobile =
+      window.matchMedia('(max-width: 1023px)').matches ||
+      window.matchMedia('(pointer: coarse)').matches;
+
+    if (!isMobile) return;
+
+    document.documentElement.classList.add('sm-force-landscape');
+    document.body.classList.add('sm-force-landscape');
+
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: string) => Promise<void>;
+      unlock?: () => void;
+    };
+
+    const lockLandscape = async () => {
+      try {
+        if (orientation?.lock) {
+          await orientation.lock('landscape');
+        }
+      } catch {
+        /* iOS / browsers sem suporte — CSS cobre o fallback */
+      }
+    };
+
+    void lockLandscape();
+
+    return () => {
+      document.documentElement.classList.remove('sm-force-landscape');
+      document.body.classList.remove('sm-force-landscape');
+      try {
+        orientation?.unlock?.();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [forceMobileLandscape]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -1122,6 +1166,7 @@ export function VideoPlayer({
       className={cn(
         'sm-player group/player relative w-full h-full overflow-hidden bg-black select-none',
         !showControls && isPlaying && 'sm-player--idle',
+        forceMobileLandscape && 'sm-player--mobile-landscape',
         className
       )}
       style={captionCssVars}
