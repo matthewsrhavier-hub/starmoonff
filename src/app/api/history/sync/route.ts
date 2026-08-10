@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { sql, isOfflineMode, inMemoryData } from '@/lib/db';
+import { getCurrentUser, verifyToken } from '@/lib/auth';
+
+export async function POST(request: NextRequest) {
+  try {
+    let user = await getCurrentUser(request);
+
+    const body = await request.json();
+    const { items, token, profile_id: bodyProfileId } = body;
+
+    if (!user && token) {
+      user = verifyToken(token);
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'Nao autenticado' }, { status: 401 });
+    }
+
+    if (!Array.isArray(items)) {
+      return NextResponse.json({ error: 'Items deve ser um array' }, { status: 400 });
+    }
+
+    const profileId = String(bodyProfileId || 'default');
+    const synced: unknown[] = [];
+
+    for (const item of items) {
+      const { tmdb_id, imdb_id, title, poster_path, media_type, season, episode, progress } = item;
+      const itemProfileId = String(item.profile_id || profileId);
+
+      if (!tmdb_id || !title || !media_type) continue;
+
+      if (isOfflineMode) {
+        const existingIndex = inMemoryData.watchHistory.findIndex(
+          (h) =>
+            h.user_id === user.userId &&
+            String(h.profile_id || 'default') === itemProfileId &&
+            h.tmdb_id === tmdb_id &&
+            h.season === season &&
+            h.episode === episode
+        );
+
+        const historyItem = {
+          id: existingIndex >= 0 ? inMemoryData.watchHistory[existingIndex].id : Date.now(),
+          user_id: user.userId,
+          profile_id: itemProfileId,
+          tmdb_id,
+          imdb_id: imdb_id || null,
+          title,
+          poster_path: poster_path || null,
+          media_type,
+          season: season || null,
+          episode: episode || null,
+          progress: progress || 0,
+          watched_at: new Date(),
+        };
+
+        if (existingIndex >= 0) {
+          inMemoryData.watchHistory[existingIndex] = historyItem;
+        } else {
+          inMemoryData.watchHistory.push(historyItem);
+        }
+
+        synced.push(historyItem);
+      } else {
+        const result = await sql`
+          INSERT INTO watch_history (user_id, tmdb_id, imdb_id, title, poster_path, media_type, season, episode, progress)
+          VALUES (${user.userId}, ${tmdb_id}, ${imdb_id || null}, ${title}, ${poster_path || null}, ${media_type}, ${season || null}, ${episode || null}, ${progress || 0})
+          ON CONFLICT (user_id, tmdb_id, season, episode)
+          DO UPDATE SET
+            progress = GREATEST(watch_history.progress, EXCLUDED.progress),
+            watched_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `;
+
+        if (result.rows.length > 0) {
+          const row = result.rows[0] as Record<string, unknown>;
+          synced.push({ ...row, profile_id: itemProfileId });
+        }
+      }
+    }
+
+    return NextResponse.json({
+      message: `${synced.length} itens sincronizados`,
+      synced,
+    });
+  } catch (error) {
+    console.error('Sync history error:', error);
+    return NextResponse.json({ error: 'Erro ao sincronizar histórico' }, { status: 500 });
+  }
+}

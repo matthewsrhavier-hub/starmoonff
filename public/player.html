@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmZone Player</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+        iframe { border: none; width: 100%; height: 100%; }
+        #shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: rgba(0,0,0,0); cursor: pointer; }
+    </style>
+    <script>
+        // BYPASS ELITE - ENGANANDO EMBEDTV.BEST
+        (function() {
+            // 1) Finge acesso ao Top e Parent (Engana o Try-Catch deles)
+            try {
+                Object.defineProperty(window, 'top', { get: () => window });
+                Object.defineProperty(window, 'parent', { get: () => window });
+                
+                // Trava a localização (Engana o window.top.location = ...)
+                const deadLocation = {
+                    get href() { return window.location.href; },
+                    set href(v) { console.log('Bloqueado:', v); },
+                    replace: function() {},
+                    assign: function() {},
+                    reload: function() {}
+                };
+                Object.defineProperty(window, 'location', { get: () => deadLocation });
+            } catch(e) {}
+
+            // 2) Mata Popups e Novas Abas
+            window.open = function() { return { focus: function(){}, close: function(){} }; };
+
+            // 3) Gerenciador do Escudo de Sacrifício (Elimina o 1º Ad-Click)
+            window.addEventListener('mousedown', function(e) {
+                const shield = document.getElementById('shield');
+                if (shield && shield.style.display !== 'none') {
+                    shield.style.display = 'none';
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Ad-Trigger consumido no Wrapper.');
+                    // Reativa após 3 segundos
+                    setTimeout(() => { shield.style.display = 'block'; }, 3000);
+                }
+            }, true);
+        })();
+
+        // 4) Carrega a URL Real
+        function loadPlayer() {
+          const params = new URLSearchParams(window.location.search);
+          const playerUrl = params.get('url');
+          if (playerUrl) {
+            document.getElementById('player-frame').src = decodeURIComponent(playerUrl);
+          }
+        }
+        window.onload = loadPlayer;
+    </script>
+</head>
+<body>
+    <div id="shield"></div>
+    <iframe id="player-frame" allowfullscreen allow="autoplay; fullscreen; encrypted-media; picture-in-picture"></iframe>
+</body>
+</html>
