@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Domínios permitidos para proxy (segurança)
-const ALLOWED_DOMAINS = [
-  'superflixapi.run',
-  'superflixapi.top',
-  'embedtv.best',
-  'www1.embedtv.best',
-  'image.tmdb.org',
-];
+import { isAllowedProxyUrl } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
   try {
-    const urlObj = new URL(url);
-    return ALLOWED_DOMAINS.some(domain =>
-      urlObj.hostname === domain || urlObj.hostname.endsWith('.' + domain)
-    );
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname === 'image.tmdb.org' || hostname.endsWith('.image.tmdb.org')) return true;
+    return isAllowedProxyUrl(url, 'asset');
   } catch {
     return false;
   }

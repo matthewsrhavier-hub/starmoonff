@@ -73,6 +73,22 @@ export function fetchWithResolvedDNS(
   resolvedIP: string,
   options: { followRedirects?: boolean; maxRedirects?: number; referer?: string } = {}
 ): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined>; redirect?: string }> {
+  return fetchWithResolvedDNSBinary(url, resolvedIP, options).then((result) => ({
+    status: result.status,
+    body: result.body.toString('utf-8'),
+    headers: result.headers,
+    redirect: result.redirect,
+  }));
+}
+
+/**
+ * Mesmo que fetchWithResolvedDNS, mas preserva o body binário (JS/CSS/TS/imagens).
+ */
+export function fetchWithResolvedDNSBinary(
+  url: string,
+  resolvedIP: string,
+  options: { followRedirects?: boolean; maxRedirects?: number; referer?: string } = {}
+): Promise<{ status: number; body: Buffer; headers: Record<string, string | string[] | undefined>; redirect?: string }> {
   const { followRedirects = false, referer } = options;
 
   return new Promise((resolve, reject) => {
@@ -87,15 +103,12 @@ export function fetchWithResolvedDNS(
         Host: urlObj.hostname,
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        Accept: '*/*',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br',
-        // Headers que indicam que está sendo carregado em um iframe
-        'Sec-Fetch-Dest': 'iframe',
-        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'cross-site',
-        'Sec-Fetch-User': '?1',
-        // Referer do site que está embedando
         Referer: referer || 'https://superflix.app/',
         Origin: referer ? new URL(referer).origin : 'https://superflix.app',
       },
@@ -110,32 +123,31 @@ export function fetchWithResolvedDNS(
         const buffer = Buffer.concat(chunks);
         const encoding = res.headers['content-encoding'];
 
-        // Descomprimir se necessário
-        let bodyPromise: Promise<string>;
+        let bodyPromise: Promise<Buffer>;
 
         if (encoding === 'gzip') {
           bodyPromise = new Promise((resolveBody, rejectBody) => {
             zlib.gunzip(buffer, (err, result) => {
               if (err) rejectBody(err);
-              else resolveBody(result.toString('utf-8'));
+              else resolveBody(result);
             });
           });
         } else if (encoding === 'deflate') {
           bodyPromise = new Promise((resolveBody, rejectBody) => {
             zlib.inflate(buffer, (err, result) => {
               if (err) rejectBody(err);
-              else resolveBody(result.toString('utf-8'));
+              else resolveBody(result);
             });
           });
         } else if (encoding === 'br') {
           bodyPromise = new Promise((resolveBody, rejectBody) => {
             zlib.brotliDecompress(buffer, (err, result) => {
               if (err) rejectBody(err);
-              else resolveBody(result.toString('utf-8'));
+              else resolveBody(result);
             });
           });
         } else {
-          bodyPromise = Promise.resolve(buffer.toString('utf-8'));
+          bodyPromise = Promise.resolve(buffer);
         }
 
         bodyPromise.then((body) => {
@@ -143,12 +155,10 @@ export function fetchWithResolvedDNS(
             status: res.statusCode || 0,
             body,
             headers: res.headers as Record<string, string | string[] | undefined>,
-            redirect: res.headers.location,
+            redirect: res.headers.location as string | undefined,
           };
 
-          // Se for redirect e followRedirects está habilitado
           if (followRedirects && res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            // Retorna info do redirect para o caller decidir
             resolve(result);
           } else {
             resolve(result);

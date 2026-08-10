@@ -1,25 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveWithCloudflare, fetchWithResolvedDNS } from '@/lib/dns-resolver';
-
-// Domínios de embed permitidos (lista fixa + padrão superflixapi.* que muda de TLD)
-const ALLOWED_EMBED_DOMAINS = [
-  'embedtv.best',
-  'www1.embedtv.best',
-];
-
-const ALLOWED_EMBED_HOST_RE =
-  /^(?:[a-z0-9-]+\.)*(?:superflixapi\.[a-z0-9.-]+|embedtv\.best)$/i;
+import { isAllowedProxyUrl, PROXY_STREAM_DOMAINS } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    if (ALLOWED_EMBED_HOST_RE.test(hostname)) return true;
-    return ALLOWED_EMBED_DOMAINS.some(
-      (domain) => hostname === domain || hostname.endsWith('.' + domain)
-    );
-  } catch {
-    return false;
-  }
+  return isAllowedProxyUrl(url, 'stream');
 }
 
 function shouldProxyUrl(url: string): boolean {
@@ -68,7 +52,8 @@ function rewriteUrlsToProxy(html: string, baseOrigin: string): string {
   const interceptorScript = `
 <script>
 (function() {
-  const PROXY_DOMAINS = ${JSON.stringify(PROXY_DOMAINS)};
+  const PROXY_DOMAINS = ${JSON.stringify([...PROXY_STREAM_DOMAINS])};
+  const PROXY_HOST_RE = /^(?:[a-z0-9-]+\\.)*(?:superflixapi\\.[a-z0-9.-]+|embedtv\\.best)$/i;
   const PROXY_BASE = '/api/proxy/';
 
   // URLs que devem ser bloqueadas (causam erros de CORS ou são desnecessárias)
@@ -98,8 +83,10 @@ function rewriteUrlsToProxy(html: string, baseOrigin: string): string {
     try {
       // Converter URL relativa para absoluta
       const urlObj = new URL(url, window.location.origin);
+      const host = urlObj.hostname.toLowerCase();
+      if (PROXY_HOST_RE.test(host)) return true;
       // Verificar se é um domínio que deve ser proxiado
-      return PROXY_DOMAINS.some(d => urlObj.hostname === d || urlObj.hostname.endsWith('.' + d));
+      return PROXY_DOMAINS.some(d => host === d || host.endsWith('.' + d));
     } catch { return false; }
   }
 

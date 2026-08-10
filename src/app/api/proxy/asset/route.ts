@@ -1,40 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWithCloudflare, fetchWithResolvedDNS } from '@/lib/dns-resolver';
-
-// Dominios permitidos para assets
-const ALLOWED_ASSET_DOMAINS = [
-  'superflixapi.cv',
-  'superflixapi.run',
-  'superflixapi.buzz',
-  'superflixapi.top',
-  'embedtv.best',
-  'www1.embedtv.best',
-  // Subdominios de stream
-  'cdn.superflixapi.cv',
-  'stream.superflixapi.cv',
-  'cdn.superflixapi.run',
-  'stream.superflixapi.run',
-  'cdn.embedtv.best',
-  'stream.embedtv.best',
-  // CDNs comuns usados pelos players
-  'cdn.jsdelivr.net',
-  'cdnjs.cloudflare.com',
-  'unpkg.com',
-  // CDNs de video/stream comuns
-  'akamaihd.net',
-  'cloudfront.net',
-  'fastly.net',
-];
+import { resolveWithCloudflare, fetchWithResolvedDNSBinary } from '@/lib/dns-resolver';
+import { isAllowedProxyUrl } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    return ALLOWED_ASSET_DOMAINS.some(
-      (domain) => urlObj.hostname === domain || urlObj.hostname.endsWith('.' + domain)
-    );
-  } catch {
-    return false;
-  }
+  return isAllowedProxyUrl(url, 'asset');
 }
 
 export const dynamic = 'force-dynamic';
@@ -101,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Asset Proxy] DNS resolvido: ${hostname} -> ${resolvedIP}`);
 
-    const result = await fetchWithResolvedDNS(url, resolvedIP);
+    const result = await fetchWithResolvedDNSBinary(url, resolvedIP);
     console.log('[Asset Proxy] Resposta recebida - Status:', result.status);
 
     // Seguir redirects se necessário
@@ -134,7 +103,7 @@ export async function GET(request: NextRequest) {
       else if (path.endsWith('.woff') || path.endsWith('.woff2')) contentType = 'font/woff2';
     }
 
-    return new NextResponse(result.body, {
+    return new NextResponse(new Uint8Array(result.body), {
       status: result.status,
       headers: {
         'Content-Type': contentType,

@@ -1,43 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveWithCloudflare, fetchWithResolvedDNS } from '@/lib/dns-resolver';
+import { isAllowedProxyUrl, PROXY_STREAM_DOMAINS } from '@/lib/proxyDomains';
 
-// Dominios permitidos para HLS
-const ALLOWED_HLS_DOMAINS = [
-  'superflixapi.cv',
-  'superflixapi.run',
-  'superflixapi.buzz',
-  'superflixapi.top',
-  'embedtv.best',
-  'www1.embedtv.best',
-  'cdn.superflixapi.cv',
-  'stream.superflixapi.cv',
-  'cdn.superflixapi.run',
-  'stream.superflixapi.run',
-];
-
-// Domínios que devem ter URLs reescritas
-const PROXY_DOMAINS = ALLOWED_HLS_DOMAINS;
+const PROXY_DOMAINS = [...PROXY_STREAM_DOMAINS];
 
 function isAllowedDomain(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    return ALLOWED_HLS_DOMAINS.some(
-      (domain) => urlObj.hostname === domain || urlObj.hostname.endsWith('.' + domain)
-    );
-  } catch {
-    return false;
-  }
+  return isAllowedProxyUrl(url, 'stream');
 }
 
 function shouldProxyUrl(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    return PROXY_DOMAINS.some(
-      (domain) => urlObj.hostname === domain || urlObj.hostname.endsWith('.' + domain)
-    );
-  } catch {
-    return false;
-  }
+  return isAllowedDomain(url);
 }
 
 function rewriteM3U8(content: string, baseUrl: string): string {
