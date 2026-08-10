@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWithCloudflare, fetchWithResolvedDNS } from '@/lib/dns-resolver';
+import { fetchUpstreamText } from '@/lib/dns-resolver';
 import { isAllowedProxyUrl, PROXY_STREAM_DOMAINS } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
@@ -357,55 +357,6 @@ function rewriteUrlsToProxy(html: string, baseOrigin: string): string {
 
 export const dynamic = 'force-dynamic';
 
-// Função para seguir redirects com DNS customizado
-async function fetchWithRedirects(url: string, referer: string, maxRedirects = 12): Promise<{ status: number; body: string } | null> {
-  let currentUrl = url;
-  let redirectCount = 0;
-
-  while (redirectCount < maxRedirects) {
-    const urlObj = new URL(currentUrl);
-    const hostname = urlObj.hostname;
-
-    // Resolver DNS via Cloudflare
-    const resolvedIP = await resolveWithCloudflare(hostname);
-    if (!resolvedIP) {
-      console.error(`[Proxy] DNS failed for: ${hostname}`);
-      return null;
-    }
-
-    console.log(`[Proxy] ${hostname} -> ${resolvedIP}`);
-
-    try {
-      const result = await fetchWithResolvedDNS(currentUrl, resolvedIP, { referer });
-
-      // Se for redirect, seguir
-      if (result.status >= 300 && result.status < 400 && result.redirect) {
-        console.log(`[Proxy] Redirect ${result.status} -> ${result.redirect}`);
-        currentUrl = result.redirect.startsWith('http')
-          ? result.redirect
-          : new URL(result.redirect, currentUrl).href;
-
-        // Verificar se o novo domínio é permitido
-        if (!isAllowedDomain(currentUrl)) {
-          console.error(`[Proxy] Redirect para domínio não permitido: ${currentUrl}`);
-          return null;
-        }
-
-        redirectCount++;
-        continue;
-      }
-
-      return { status: result.status, body: result.body };
-    } catch (error) {
-      console.error(`[Proxy] Fetch error:`, error);
-      return null;
-    }
-  }
-
-  console.error(`[Proxy] Too many redirects`);
-  return null;
-}
-
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
 
@@ -423,17 +374,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Usar o referer da request ou o host do site
     const requestReferer = request.headers.get('referer') || request.headers.get('origin');
     const referer = requestReferer || `https://${request.headers.get('host') || 'superflix.app'}/`;
 
     console.log('[Embed Proxy] Buscando conteúdo com referer:', referer);
-    const result = await fetchWithRedirects(url, referer);
-
-    if (!result) {
-      console.log('[Embed Proxy] ERRO: fetchWithRedirects retornou null');
-      return NextResponse.json({ error: 'Erro ao acessar o conteúdo' }, { status: 502 });
-    }
+    const result = await fetchUpstreamText(url, { referer });
 
     console.log('[Embed Proxy] Resposta recebida - Status:', result.status);
     console.log('[Embed Proxy] Tamanho do body:', result.body?.length || 0, 'bytes');
@@ -448,14 +393,11 @@ export async function GET(request: NextRequest) {
 
     let html = result.body;
 
-    // Determinar a base URL original
-    const urlObj = new URL(url);
+    const urlObj = new URL(result.finalUrl || url);
     const baseOrigin = urlObj.origin;
 
-    // Reescrever todas as URLs para usar o proxy
     html = rewriteUrlsToProxy(html, baseOrigin);
 
-    // Adicionar base tag se não existir (para recursos não capturados)
     if (!html.includes('<base')) {
       html = html.replace('<head>', `<head><base href="${baseOrigin}/">`);
     }
@@ -467,7 +409,6 @@ export async function GET(request: NextRequest) {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': '*',
-        'X-Frame-Options': 'ALLOWALL',
         'Content-Security-Policy': "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' blob:; worker-src * blob:; style-src * 'unsafe-inline'; img-src * data: blob:; media-src * data: blob:; connect-src *; frame-src *;",
         'Cache-Control': 'no-cache',
       },
@@ -480,3 +421,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

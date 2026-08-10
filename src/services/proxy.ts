@@ -3,8 +3,8 @@
  * Usa o DNS do Cloudflare (1.1.1.1) através do servidor
  */
 
-// Verificar se devemos usar proxy (pode ser configurado por env)
-const USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY !== 'false';
+// Verificar se devemos usar proxy (opt-in — na Vercel o embed direto funciona melhor)
+const USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY === 'true';
 
 /**
  * Gera URL do proxy para um recurso externo

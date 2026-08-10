@@ -184,3 +184,110 @@ export function fetchWithResolvedDNSBinary(
 export function clearDNSCache(): void {
   dnsCache.clear();
 }
+
+const DEFAULT_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/**
+ * Fetch upstream: primeiro fetch nativo (funciona na Vercel),
+ * depois fallback via DNS Cloudflare (útil em redes locais bloqueadas).
+ */
+export async function fetchUpstreamText(
+  url: string,
+  options: { referer?: string } = {}
+): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined>; finalUrl: string }> {
+  const referer = options.referer || 'https://superflix.app/';
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        Referer: referer,
+      },
+      redirect: 'follow',
+      cache: 'no-store',
+    });
+
+    const body = await response.text();
+    if (response.ok || body.length > 0) {
+      const headers: Record<string, string | string[] | undefined> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      return {
+        status: response.status,
+        body,
+        headers,
+        finalUrl: response.url || url,
+      };
+    }
+  } catch (err) {
+    console.warn('[Upstream] Native fetch failed, trying DNS resolver:', err);
+  }
+
+  const hostname = new URL(url).hostname;
+  const resolvedIP = await resolveWithCloudflare(hostname);
+  if (!resolvedIP) {
+    throw new Error(`DNS resolution failed for ${hostname}`);
+  }
+
+  const result = await fetchWithResolvedDNS(url, resolvedIP, { referer });
+  return {
+    status: result.status,
+    body: result.body,
+    headers: result.headers,
+    finalUrl: result.redirect || url,
+  };
+}
+
+export async function fetchUpstreamBinary(
+  url: string,
+  options: { referer?: string } = {}
+): Promise<{ status: number; body: Buffer; headers: Record<string, string | string[] | undefined>; finalUrl: string }> {
+  const referer = options.referer || 'https://superflix.app/';
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: '*/*',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        Referer: referer,
+      },
+      redirect: 'follow',
+      cache: 'no-store',
+    });
+
+    const body = Buffer.from(await response.arrayBuffer());
+    if (response.ok || body.length > 0) {
+      const headers: Record<string, string | string[] | undefined> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      return {
+        status: response.status,
+        body,
+        headers,
+        finalUrl: response.url || url,
+      };
+    }
+  } catch (err) {
+    console.warn('[Upstream] Native binary fetch failed, trying DNS resolver:', err);
+  }
+
+  const hostname = new URL(url).hostname;
+  const resolvedIP = await resolveWithCloudflare(hostname);
+  if (!resolvedIP) {
+    throw new Error(`DNS resolution failed for ${hostname}`);
+  }
+
+  const result = await fetchWithResolvedDNSBinary(url, resolvedIP, { referer });
+  return {
+    status: result.status,
+    body: result.body,
+    headers: result.headers,
+    finalUrl: result.redirect || url,
+  };
+}

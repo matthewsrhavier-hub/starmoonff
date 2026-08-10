@@ -244,11 +244,20 @@ export const superflixApi = {
     return `${baseUrl}/serie/${id}/${season}/${episode}`;
   },
 
-  // URL com proxy para contornar bloqueios
-  getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number, useProxy = true): string {
+  /**
+   * Na Vercel/produção o proxy DNS costuma falhar.
+   * Por padrão usa embed direto; ligue NEXT_PUBLIC_USE_PROXY=true só se precisar.
+   */
+  shouldUseProxy(explicit?: boolean): boolean {
+    if (typeof explicit === 'boolean') return explicit;
+    return process.env.NEXT_PUBLIC_USE_PROXY === 'true';
+  },
+
+  // URL com proxy opcional para contornar bloqueios locais
+  getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number, useProxy?: boolean): string {
     const directUrl = this.getDirectUrl(type, id, season, episode);
 
-    if (useProxy) {
+    if (this.shouldUseProxy(useProxy)) {
       return `/api/proxy/embed?url=${encodeURIComponent(directUrl)}`;
     }
 

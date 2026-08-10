@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWithCloudflare, fetchWithResolvedDNSBinary } from '@/lib/dns-resolver';
+import { fetchUpstreamBinary } from '@/lib/dns-resolver';
 import { isAllowedProxyUrl } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
@@ -15,40 +15,14 @@ export async function GET(request: NextRequest) {
   console.log('[Asset Proxy] URL solicitada:', url);
 
   if (!url) {
-    console.log('[Asset Proxy] ERRO: URL não fornecida');
     return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
   }
 
-  // Para CDNs públicos, tentar fetch normal primeiro
-  const urlObj = new URL(url);
-  const isCDN = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'unpkg.com'].some(
-    cdn => urlObj.hostname === cdn || urlObj.hostname.endsWith('.' + cdn)
-  );
-
-  if (isCDN) {
-    // CDNs geralmente não são bloqueados, fetch direto
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': '*/*',
-        },
-      });
-
-      const contentType = response.headers.get('content-type') || 'application/octet-stream';
-      const data = await response.arrayBuffer();
-
-      return new NextResponse(data, {
-        status: response.status,
-        headers: {
-          'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=86400',
-        },
-      });
-    } catch {
-      // Se falhar, tentar com DNS resolver
-    }
+  let urlObj: URL;
+  try {
+    urlObj = new URL(url);
+  } catch {
+    return NextResponse.json({ error: 'URL inválida' }, { status: 400 });
   }
 
   if (!isAllowedDomain(url)) {
@@ -57,39 +31,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const hostname = urlObj.hostname;
+    const result = await fetchUpstreamBinary(url, {
+      referer: 'https://superflix.app/',
+    });
 
-    console.log('[Asset Proxy] Resolvendo DNS para:', hostname);
-
-    // Resolver DNS via Cloudflare
-    const resolvedIP = await resolveWithCloudflare(hostname);
-    if (!resolvedIP) {
-      console.log('[Asset Proxy] ERRO: DNS falhou para:', hostname);
-      return NextResponse.json({ error: 'DNS resolution failed' }, { status: 502 });
-    }
-
-    console.log(`[Asset Proxy] DNS resolvido: ${hostname} -> ${resolvedIP}`);
-
-    const result = await fetchWithResolvedDNSBinary(url, resolvedIP);
-    console.log('[Asset Proxy] Resposta recebida - Status:', result.status);
-
-    // Seguir redirects se necessário
-    if (result.status >= 300 && result.status < 400 && result.redirect) {
-      const redirectUrl = result.redirect.startsWith('http')
-        ? result.redirect
-        : new URL(result.redirect, url).href;
-
-      // Redirecionar através do proxy
-      return NextResponse.redirect(`/api/proxy/asset?url=${encodeURIComponent(redirectUrl)}`);
-    }
-
-    // Detectar content-type
     let contentType = 'application/octet-stream';
     const headerContentType = result.headers['content-type'];
     if (headerContentType) {
       contentType = Array.isArray(headerContentType) ? headerContentType[0] : headerContentType;
     } else {
-      // Inferir do path
       const path = urlObj.pathname.toLowerCase();
       if (path.endsWith('.js')) contentType = 'application/javascript';
       else if (path.endsWith('.css')) contentType = 'text/css';

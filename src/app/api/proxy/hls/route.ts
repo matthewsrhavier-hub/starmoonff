@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWithCloudflare, fetchWithResolvedDNS } from '@/lib/dns-resolver';
-import { isAllowedProxyUrl, PROXY_STREAM_DOMAINS } from '@/lib/proxyDomains';
-
-const PROXY_DOMAINS = [...PROXY_STREAM_DOMAINS];
+import { fetchUpstreamBinary, fetchUpstreamText } from '@/lib/dns-resolver';
+import { isAllowedProxyUrl } from '@/lib/proxyDomains';
 
 function isAllowedDomain(url: string): boolean {
   return isAllowedProxyUrl(url, 'stream');
@@ -90,51 +88,41 @@ export async function GET(request: NextRequest) {
 
   try {
     const urlObj = new URL(url);
-    const hostname = urlObj.hostname;
+    const looksLikeM3U8 = url.includes('.m3u8');
 
-    console.log('[HLS Proxy] Resolvendo DNS para:', hostname);
+    if (looksLikeM3U8) {
+      const result = await fetchUpstreamText(url, { referer: 'https://superflix.app/' });
+      const contentType = result.headers['content-type'];
+      const isM3U8 =
+        looksLikeM3U8 ||
+        (typeof contentType === 'string' &&
+          (contentType.includes('mpegurl') ||
+            contentType.includes('x-mpegurl') ||
+            contentType.includes('vnd.apple.mpegurl')));
 
-    // Resolver DNS via Cloudflare
-    const resolvedIP = await resolveWithCloudflare(hostname);
-    if (!resolvedIP) {
-      console.error(`[HLS Proxy] ERRO: DNS falhou para: ${hostname}`);
-      return NextResponse.json({ error: 'DNS resolution failed' }, { status: 502 });
+      if (isM3U8) {
+        const rewrittenContent = rewriteM3U8(result.body, result.finalUrl || url);
+        return new NextResponse(rewrittenContent, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/vnd.apple.mpegurl',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Cache-Control': 'no-cache',
+          },
+        });
+      }
     }
 
-    console.log(`[HLS Proxy] DNS resolvido: ${hostname} -> ${resolvedIP}`);
+    const result = await fetchUpstreamBinary(url, { referer: 'https://superflix.app/' });
+    const headerContentType = result.headers['content-type'];
+    const contentType =
+      (Array.isArray(headerContentType) ? headerContentType[0] : headerContentType) ||
+      (urlObj.pathname.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
 
-    console.log('[HLS Proxy] Fazendo fetch com IP resolvido...');
-    const result = await fetchWithResolvedDNS(url, resolvedIP, {
-      referer: 'https://superflix.app/',
-    });
-
-    console.log('[HLS Proxy] Resposta recebida - Status:', result.status);
-    console.log('[HLS Proxy] Tamanho do body:', result.body?.length || 0, 'bytes');
-
-    // Seguir redirects
-    if (result.status >= 300 && result.status < 400 && result.redirect) {
-      const redirectUrl = result.redirect.startsWith('http')
-        ? result.redirect
-        : new URL(result.redirect, url).href;
-
-      return NextResponse.redirect(
-        `/api/proxy/hls?url=${encodeURIComponent(redirectUrl)}`
-      );
-    }
-
-    // Detectar se é um arquivo M3U8 ou segmento TS
-    const contentType = result.headers['content-type'];
-    const isM3U8 =
-      url.includes('.m3u8') ||
-      (contentType &&
-        (contentType.includes('mpegurl') ||
-          contentType.includes('x-mpegurl') ||
-          contentType.includes('vnd.apple.mpegurl')));
-
-    if (isM3U8) {
-      // Reescrever URLs no M3U8
-      const rewrittenContent = rewriteM3U8(result.body, url);
-
+    if (contentType.includes('mpegurl') || url.includes('.m3u8')) {
+      const rewrittenContent = rewriteM3U8(result.body.toString('utf-8'), result.finalUrl || url);
       return new NextResponse(rewrittenContent, {
         status: 200,
         headers: {
@@ -147,11 +135,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Para segmentos TS, retornar o conteúdo diretamente
-    return new NextResponse(result.body, {
+    return new NextResponse(new Uint8Array(result.body), {
       status: result.status,
       headers: {
-        'Content-Type': 'video/mp2t',
+        'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': '*',

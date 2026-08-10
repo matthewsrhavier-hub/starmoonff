@@ -111,6 +111,18 @@ function extractPlayerSrc(
   if (modeHint === 'iframe' && !url.includes('autoplay=')) {
     url += `${url.includes('?') ? '&' : '?'}autoplay=1`;
   }
+
+  // No deploy, unwrap proxy antigo → URL direta do embed
+  if (process.env.NEXT_PUBLIC_USE_PROXY !== 'true' && url.includes('/api/proxy/embed')) {
+    try {
+      const parsed = new URL(url, 'https://local.invalid');
+      const inner = parsed.searchParams.get('url');
+      if (inner) url = decodeURIComponent(inner);
+    } catch {
+      /* keep proxied url */
+    }
+  }
+
   return url;
 }
 
