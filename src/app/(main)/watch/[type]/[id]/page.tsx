@@ -179,6 +179,13 @@ export default function WatchPage() {
     } catch (error) {
       console.error('Error loading content:', error);
       setIsLoading(false);
+      // Mesmo se os detalhes falharem, tenta pegar o IMDb para o player
+      try {
+        const ids = await tmdb.getExternalIds(type, id);
+        if (ids?.imdb_id) setImdbId(ids.imdb_id);
+      } catch {
+        /* ignore */
+      }
     }
   };
 
@@ -370,8 +377,115 @@ export default function WatchPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  const resolvedPlayerCode =
+    playerCode ||
+    superflixApi.getEmbedUrl(
+      type,
+      type === 'movie' ? (imdbId || String(id)) : String(id),
+      selectedSeason,
+      selectedEpisode
+    );
+
+  // Player tem prioridade: nunca ficar preso em skeleton sem montar o iframe
+  if (isPlaying) {
+    const title = content?.title || content?.name || 'Starmoon';
+    const backdropUrl = content?.backdrop_path ? tmdb.getImageUrl(content.backdrop_path, 'w1280') : null;
+    const posterUrl = content?.poster_path ? tmdb.getImageUrl(content.poster_path, 'w500') : null;
+    const episodeRuntime =
+      type === 'tv'
+        ? episodes.find((e) => e.episode_number === selectedEpisode)?.runtime || null
+        : null;
+    const runtime = episodeRuntime || content?.runtime || content?.episode_run_time?.[0];
+    const estimatedDurationSec =
+      typeof runtime === 'number' && runtime > 0
+        ? runtime < 1000
+          ? runtime * 60
+          : runtime
+        : type === 'tv'
+          ? 45 * 60
+          : 2 * 60 * 60;
+
+    const nextEpisodeInfo =
+      type === 'tv' && episodes.length > 0
+        ? (() => {
+            const idx = episodes.findIndex((e) => e.episode_number === selectedEpisode);
+            const next = idx >= 0 ? episodes[idx + 1] : null;
+            if (!next) return null;
+            return {
+              season: selectedSeason,
+              episode: next.episode_number,
+              name: next.name,
+              stillUrl: next.still_path ? tmdb.getImageUrl(next.still_path, 'w300') : null,
+            };
+          })()
+        : null;
+
+    const goToNextEpisode = () => {
+      if (!nextEpisodeInfo) return;
+      setSelectedSeason(nextEpisodeInfo.season);
+      setSelectedEpisode(nextEpisodeInfo.episode);
+      setIsPlaying(true);
+    };
+
+    const resumeState = (() => {
+      try {
+        const item = getProgressItem(loadLocalProgress(), type, id, {
+          season: type === 'tv' ? selectedSeason : undefined,
+          episode: type === 'tv' ? selectedEpisode : undefined,
+        });
+        return {
+          progress: item?.progress || 0,
+          time: item?.current_time || 0,
+        };
+      } catch {
+        return { progress: 0, time: 0 };
+      }
+    })();
+
+    return (
+      <div className="min-h-[100dvh] bg-black">
+        <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] min-h-[100svh] bg-black overflow-hidden">
+          {isLoadingPlayer ? (
+            <div className="w-full h-full flex items-center justify-center text-white/70">
+              Carregando player...
+            </div>
+          ) : (
+            <VideoPlayer
+              playerCode={resolvedPlayerCode}
+              mediaType={type}
+              season={type === 'tv' ? selectedSeason : undefined}
+              episode={type === 'tv' ? selectedEpisode : undefined}
+              title={title}
+              posterUrl={backdropUrl || posterUrl || ''}
+              imdbId={imdbId}
+              tmdbId={id}
+              nextEpisode={type === 'tv' ? nextEpisodeInfo : null}
+              onNextEpisode={type === 'tv' && nextEpisodeInfo ? goToNextEpisode : undefined}
+              onClose={() => setIsPlaying(false)}
+              initialProgress={resumeState.progress}
+              initialTime={resumeState.time}
+              estimatedDuration={estimatedDurationSec}
+              onProgress={(progress, currentTime, duration, meta) => {
+                if (!content) return;
+                saveToHistory(content, progress, {
+                  current_time: currentTime,
+                  duration,
+                  force: true,
+                  season: meta?.season,
+                  episode: meta?.episode,
+                });
+              }}
+              className="w-full h-full min-h-[100svh]"
+              forceMobileLandscape={false}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Com ?play=1 / Assistir, não fica preso no skeleton da página
-  if (isLoading && !isPlaying) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)]">
         <SkeletonPlayer />
@@ -379,13 +493,6 @@ export default function WatchPage() {
     );
   }
   if (!content) {
-    if (isPlaying) {
-      return (
-        <div className="fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black flex items-center justify-center">
-          <SkeletonPlayer />
-        </div>
-      );
-    }
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center text-white">
         <Link href="/">
@@ -467,52 +574,6 @@ export default function WatchPage() {
 
   return (
     <div className="min-h-[100dvh] bg-black">
-      {isPlaying ? (
-        <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] min-h-[100svh] bg-black overflow-hidden supports-[height:100dvh]:h-[100dvh]">
-          {isLoadingPlayer || (type === 'movie' && !playerCode && isLoading) ? (
-            <div className="w-full h-full flex items-center justify-center text-white/70">
-              Carregando player...
-            </div>
-          ) : (
-          <VideoPlayer
-            playerCode={
-              playerCode ||
-              superflixApi.getEmbedUrl(
-                type,
-                type === 'movie' ? (imdbId || String(id)) : String(id),
-                selectedSeason,
-                selectedEpisode
-              )
-            }
-            mediaType={type}
-            season={type === 'tv' ? selectedSeason : undefined}
-            episode={type === 'tv' ? selectedEpisode : undefined}
-            title={title}
-            posterUrl={backdropUrl || posterUrl || ''}
-            imdbId={imdbId}
-            tmdbId={id}
-            nextEpisode={type === 'tv' ? nextEpisodeInfo : null}
-            onNextEpisode={type === 'tv' && nextEpisodeInfo ? goToNextEpisode : undefined}
-            onClose={() => setIsPlaying(false)}
-            initialProgress={resumeState.progress}
-            initialTime={resumeState.time}
-            estimatedDuration={estimatedDurationSec}
-            onProgress={(progress, currentTime, duration, meta) =>
-              saveToHistory(content, progress, {
-                current_time: currentTime,
-                duration,
-                force: true,
-                season: meta?.season,
-                episode: meta?.episode,
-              })
-            }
-            className="w-full h-full min-h-[100svh]"
-            forceMobileLandscape={false}
-          />
-          )}
-        </div>
-      ) : (
-        <>
           {/* Hero detalhes */}
           <section className="relative w-full min-h-[72svh] md:min-h-[78vh]">
             {/* Backdrop isolado para não cortar o poster */}
@@ -927,9 +988,6 @@ export default function WatchPage() {
               </CatalogSection>
             )}
           </CatalogPageBody>
-        </>
-      )}
-
       {showTrailer && trailerKey && (
         <div
           className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-300"

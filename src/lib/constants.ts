@@ -3,8 +3,8 @@ export const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY || '';
 export const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 
-// SuperflixAPI
-export const SUPERFLIX_API_URL = 'https://superflixapi.cv';
+// SuperflixAPI (domínio atual — .best/.cv redirecionam)
+export const SUPERFLIX_API_URL = 'https://superflixapi.pro';
 
 // Image sizes
 export const IMAGE_SIZES = {

@@ -58,26 +58,16 @@ export default function RootLayout({
               (function() {
                 const MY_DOMAIN = window.location.hostname;
 
-                // 1) Patch de Hierarquia (Engana Detectores)
-                try {
-                   Object.defineProperty(window, 'top', { get: () => window });
-                   // Aplica o patch sugerido: window.parent = window
-                   if (window.parent !== window) {
-                      try { delete window.parent; window.parent = window; } catch(e) { 
-                         Object.defineProperty(window, 'parent', { get: () => window });
-                      }
-                   }
-                   window.open = function() { return { focus: function(){}, close: function(){} }; };
-                } catch(e) {}
+                // Não patchar window.top/parent: isso quebra embeds de vídeo no celular
 
-                // 2) Bloqueio de cliques externos Sniper
+                // Bloqueio de cliques externos
                 document.addEventListener('click', (e) => {
                   const target = e.target.closest('a');
-                  if (target && target.hostname !== MY_DOMAIN) e.preventDefault();
+                  if (target && target.hostname && target.hostname !== MY_DOMAIN && !target.target) {
+                    // permite iframes/embeds; só bloqueia navegação de links externos
+                    e.preventDefault();
+                  }
                 }, true);
-
-                // 3) Desativador de Redirecionamento Brusco
-                window.onbeforeunload = function() { return null; };
               })();
             `,
           }}

@@ -229,24 +229,23 @@ export const tmdb = {
 };
 
 export const superflixApi = {
-  // URL base sem proxy
-  // Filmes: usam IMDb ID (formato: tt1234567)
-  // Séries: usam TMDB ID
+  // Host atual (cadeia .best → .fit → .cyou → .pro)
+  baseUrl: 'https://superflixapi.pro',
+
   getDirectUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
-    // Host atual do embed ( .cv / .rest redirecionam para cá )
-    const baseUrl = 'https://superflixapi.best';
+    const baseUrl = this.baseUrl;
     if (type === 'movie') {
-      // Filmes precisam do IMDb ID com prefixo 'tt'
-      // Se já tem 'tt', usa diretamente; senão, assume que é TMDB ID e não vai funcionar
-      return `${baseUrl}/filme/${id}`;
+      // Superflix filme exige IMDb (tt…). Sem isso, usa embed por TMDB.
+      if (String(id).startsWith('tt')) {
+        return `${baseUrl}/filme/${id}`;
+      }
+      return `https://vidlink.pro/movie/${id}`;
     }
-    // Séries usam TMDB ID
-    return `${baseUrl}/serie/${id}/${season}/${episode}`;
+    return `${baseUrl}/serie/${id}/${season || 1}/${episode || 1}`;
   },
 
   /**
-   * Embed direto no browser (sem /api/proxy e sem /player.html aninhado).
-   * Iframe duplo quebra o vídeo no celular (iOS/Safari/Chrome).
+   * Embed direto no browser (sem proxy / sem iframe aninhado).
    */
   getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
     return this.getDirectUrl(type, id, season, episode);
@@ -254,5 +253,21 @@ export const superflixApi = {
 
   getEmbedUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
     return this.getPlayerUrl(type, id, season, episode);
+  },
+
+  /** Alternativas se a fonte principal falhar */
+  getFallbackUrls(type: 'movie' | 'tv', tmdbId: number, imdbId?: string | null, season = 1, episode = 1): string[] {
+    const urls: string[] = [];
+    if (type === 'movie') {
+      if (imdbId) urls.push(`${this.baseUrl}/filme/${imdbId}`);
+      urls.push(`https://vidlink.pro/movie/${tmdbId}`);
+      urls.push(`https://vidsrc.xyz/embed/movie/${tmdbId}`);
+      if (imdbId) urls.push(`https://vidsrc.xyz/embed/movie/${imdbId}`);
+    } else {
+      urls.push(`${this.baseUrl}/serie/${tmdbId}/${season}/${episode}`);
+      urls.push(`https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`);
+      urls.push(`https://vidsrc.xyz/embed/tv/${tmdbId}/${season}/${episode}`);
+    }
+    return Array.from(new Set(urls));
   },
 };
