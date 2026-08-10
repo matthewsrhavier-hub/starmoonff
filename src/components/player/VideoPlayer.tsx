@@ -108,30 +108,49 @@ function extractPlayerSrc(
 
   // autoplay só em embeds (iframe); MP4/HLS não precisam disso na URL
   const modeHint = detectMode(url);
-  if (modeHint === 'iframe' && !url.includes('autoplay=')) {
+  if (modeHint === 'iframe' && !url.includes('autoplay=') && !url.includes('/player.html')) {
     url += `${url.includes('?') ? '&' : '?'}autoplay=1`;
   }
 
-  // No deploy, unwrap proxy antigo → URL direta do embed
-  if (process.env.NEXT_PUBLIC_USE_PROXY !== 'true' && url.includes('/api/proxy/embed')) {
+  // Unwrap proxy antigo (Vercel recebe 403 do Superflix no server-side)
+  if (url.includes('/api/proxy/embed')) {
     try {
       const parsed = new URL(url, 'https://local.invalid');
       const inner = parsed.searchParams.get('url');
       if (inner) url = decodeURIComponent(inner);
     } catch {
-      /* keep proxied url */
+      /* keep */
     }
   }
 
+  // Embeds externos via /player.html (mesmo origin + referrer ok; evita tela preta no deploy)
+  if (shouldWrapInPlayerHtml(url)) {
+    url = `/player.html?url=${encodeURIComponent(url)}`;
+  }
+
   return url;
+}
+
+function shouldWrapInPlayerHtml(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.includes('/player.html')) return false;
+  if (detectMode(url) !== 'iframe') return false;
+  return (
+    lower.startsWith('http://') ||
+    lower.startsWith('https://') ||
+    lower.includes('superflixapi.') ||
+    lower.includes('embedtv.')
+  );
 }
 
 function detectMode(src: string): 'hls' | 'mp4' | 'iframe' {
   if (!src) return 'iframe';
   const lower = src.toLowerCase();
 
-  // Páginas de embed / proxy nunca vão no <video>
+  // Páginas de embed / proxy / wrapper nunca vão no <video>
   if (
+    lower.includes('/player.html') ||
     lower.includes('/api/proxy/embed') ||
     lower.includes('superflixapi.') ||
     lower.includes('/embed/') ||
@@ -1271,7 +1290,7 @@ export function VideoPlayer({
             className="absolute inset-0 w-full h-full border-0 bg-black"
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
-            referrerPolicy="no-referrer"
+            referrerPolicy="origin-when-cross-origin"
             onLoad={() => setIsLoading(false)}
             onError={() => {
               setIsLoading(false);

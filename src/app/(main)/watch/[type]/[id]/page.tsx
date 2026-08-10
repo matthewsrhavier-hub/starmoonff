@@ -469,7 +469,7 @@ export default function WatchPage() {
     <div className="min-h-[100dvh] bg-black">
       {isPlaying ? (
         <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black overflow-hidden">
-          {isLoadingPlayer || (type === 'movie' && !playerCode && isLoading) ? (
+          {isLoadingPlayer || (type === 'movie' && !playerCode && (isLoading || !imdbId)) ? (
             <div className="w-full h-full flex items-center justify-center text-white/70">
               Carregando player...
             </div>

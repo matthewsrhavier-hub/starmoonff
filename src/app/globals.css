@@ -1370,37 +1370,11 @@ body.player-open nav[class*="fixed"] {
   display: none !important;
 }
 
-/* Player mobile: força horizontal quando o aparelho está em pé */
+/* Player mobile: pede landscape nativo; sem CSS rotate (quebrava o vídeo no deploy) */
 @media (max-width: 1023px) and (orientation: portrait) {
   html.sm-force-landscape,
   body.sm-force-landscape {
     overflow: hidden !important;
-    width: 100%;
-    height: 100%;
-    touch-action: none;
-  }
-
-  .sm-watch-player-shell {
-    width: 100dvh !important;
-    height: 100dvw !important;
-    top: 50% !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: auto !important;
-    transform: translate(-50%, -50%) rotate(90deg);
-    transform-origin: center center;
-    max-width: none;
-    max-height: none;
-  }
-
-  .sm-watch-player-shell .sm-player-top {
-    padding-left: max(12px, env(safe-area-inset-top, 0px));
-    padding-right: max(12px, env(safe-area-inset-bottom, 0px));
-  }
-
-  .sm-watch-player-shell .sm-player-bottom {
-    padding-left: max(12px, env(safe-area-inset-top, 0px));
-    padding-right: max(12px, env(safe-area-inset-bottom, 0px));
   }
 }
 

@@ -245,23 +245,12 @@ export const superflixApi = {
   },
 
   /**
-   * Na Vercel/produção o proxy DNS costuma falhar.
-   * Por padrão usa embed direto; ligue NEXT_PUBLIC_USE_PROXY=true só se precisar.
+   * Vercel: Superflix bloqueia o IP do server (proxy 403).
+   * Sempre usa /player.html no browser (embed direto com referrer).
    */
-  shouldUseProxy(explicit?: boolean): boolean {
-    if (typeof explicit === 'boolean') return explicit;
-    return process.env.NEXT_PUBLIC_USE_PROXY === 'true';
-  },
-
-  // URL com proxy opcional para contornar bloqueios locais
-  getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number, useProxy?: boolean): string {
+  getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
     const directUrl = this.getDirectUrl(type, id, season, episode);
-
-    if (this.shouldUseProxy(useProxy)) {
-      return `/api/proxy/embed?url=${encodeURIComponent(directUrl)}`;
-    }
-
-    return directUrl;
+    return `/player.html?url=${encodeURIComponent(directUrl)}`;
   },
 
   getEmbedUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
