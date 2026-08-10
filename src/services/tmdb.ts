@@ -245,12 +245,11 @@ export const superflixApi = {
   },
 
   /**
-   * Vercel: Superflix bloqueia o IP do server (proxy 403).
-   * Sempre usa /player.html no browser (embed direto com referrer).
+   * Embed direto no browser (sem /api/proxy e sem /player.html aninhado).
+   * Iframe duplo quebra o vídeo no celular (iOS/Safari/Chrome).
    */
   getPlayerUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {
-    const directUrl = this.getDirectUrl(type, id, season, episode);
-    return `/player.html?url=${encodeURIComponent(directUrl)}`;
+    return this.getDirectUrl(type, id, season, episode);
   },
 
   getEmbedUrl(type: 'movie' | 'tv', id: string, season?: number, episode?: number): string {

@@ -468,8 +468,8 @@ export default function WatchPage() {
   return (
     <div className="min-h-[100dvh] bg-black">
       {isPlaying ? (
-        <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black overflow-hidden">
-          {isLoadingPlayer || (type === 'movie' && !playerCode && (isLoading || !imdbId)) ? (
+        <div className="sm-watch-player-shell fixed inset-0 z-[9999] w-screen h-[100dvh] min-h-[100svh] bg-black overflow-hidden supports-[height:100dvh]:h-[100dvh]">
+          {isLoadingPlayer || (type === 'movie' && !playerCode && isLoading) ? (
             <div className="w-full h-full flex items-center justify-center text-white/70">
               Carregando player...
             </div>
@@ -506,8 +506,8 @@ export default function WatchPage() {
                 episode: meta?.episode,
               })
             }
-            className="w-full h-full"
-            forceMobileLandscape
+            className="w-full h-full min-h-[100svh]"
+            forceMobileLandscape={false}
           />
           )}
         </div>

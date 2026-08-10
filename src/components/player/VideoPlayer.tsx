@@ -123,25 +123,18 @@ function extractPlayerSrc(
     }
   }
 
-  // Embeds externos via /player.html (mesmo origin + referrer ok; evita tela preta no deploy)
-  if (shouldWrapInPlayerHtml(url)) {
-    url = `/player.html?url=${encodeURIComponent(url)}`;
+  // Unwrap /player.html — iframe aninhado quebra o vídeo no iOS/Android
+  if (url.includes('/player.html')) {
+    try {
+      const parsed = new URL(url, 'https://local.invalid');
+      const inner = parsed.searchParams.get('url');
+      if (inner) url = decodeURIComponent(inner);
+    } catch {
+      /* keep */
+    }
   }
 
   return url;
-}
-
-function shouldWrapInPlayerHtml(url: string): boolean {
-  if (!url) return false;
-  const lower = url.toLowerCase();
-  if (lower.includes('/player.html')) return false;
-  if (detectMode(url) !== 'iframe') return false;
-  return (
-    lower.startsWith('http://') ||
-    lower.startsWith('https://') ||
-    lower.includes('superflixapi.') ||
-    lower.includes('embedtv.')
-  );
 }
 
 function detectMode(src: string): 'hls' | 'mp4' | 'iframe' {
@@ -687,7 +680,15 @@ export function VideoPlayer({
     setIframeClock(0);
     setCaptionLanguages([]);
     setSelectedCaptionLang(null);
-  }, [playerSrc]);
+    setIsLoading(true);
+    setError(null);
+
+    // Em iframe (celular), onLoad às vezes não dispara — tira o spinner
+    if (!isNative) {
+      const t = window.setTimeout(() => setIsLoading(false), 2500);
+      return () => window.clearTimeout(t);
+    }
+  }, [playerSrc, isNative]);
 
   const buildSubtitleParams = useCallback(() => {
     const params = new URLSearchParams({
@@ -1052,7 +1053,7 @@ export function VideoPlayer({
     };
   }, [resetControlsTimeout]);
 
-  // Celular: trava / força orientação horizontal enquanto o player está aberto
+  // Celular: tenta landscape só se a API existir; não bloqueia o vídeo se falhar
   useEffect(() => {
     if (!forceMobileLandscape || typeof window === 'undefined') return;
 
@@ -1062,29 +1063,27 @@ export function VideoPlayer({
 
     if (!isMobile) return;
 
-    document.documentElement.classList.add('sm-force-landscape');
-    document.body.classList.add('sm-force-landscape');
-
     const orientation = screen.orientation as ScreenOrientation & {
       lock?: (orientation: string) => Promise<void>;
       unlock?: () => void;
     };
 
-    const lockLandscape = async () => {
+    // Só trava se já estiver em fullscreen (requisito comum no Android)
+    const tryLock = async () => {
       try {
-        if (orientation?.lock) {
+        if (document.fullscreenElement && orientation?.lock) {
           await orientation.lock('landscape');
         }
       } catch {
-        /* iOS / browsers sem suporte — CSS cobre o fallback */
+        /* iOS não suporta — ok */
       }
     };
 
-    void lockLandscape();
+    void tryLock();
+    document.addEventListener('fullscreenchange', tryLock);
 
     return () => {
-      document.documentElement.classList.remove('sm-force-landscape');
-      document.body.classList.remove('sm-force-landscape');
+      document.removeEventListener('fullscreenchange', tryLock);
       try {
         orientation?.unlock?.();
       } catch {
@@ -1285,10 +1284,11 @@ export function VideoPlayer({
           </video>
         ) : (
           <iframe
+            key={playerSrc}
             src={playerSrc}
             title={title || 'Player'}
             className="absolute inset-0 w-full h-full border-0 bg-black"
-            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
             allowFullScreen
             referrerPolicy="origin-when-cross-origin"
             onLoad={() => setIsLoading(false)}
