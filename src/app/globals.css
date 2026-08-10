@@ -241,6 +241,21 @@
     min-height: 100dvh;
   }
 
+  /* Hero mobile: imagem bem para cima, cobre a área do topo */
+  .hero-backdrop-img {
+    object-position: center top;
+    transform: scale(1.12);
+    transform-origin: center top;
+  }
+
+  @media (min-width: 768px) {
+    .hero-backdrop-img {
+      object-position: center 20%;
+      transform: none;
+      transform-origin: center center;
+    }
+  }
+
   /* PWA instalado: espaço antes do conteúdo (status bar / notch) */
   @media (display-mode: standalone), (display-mode: fullscreen) {
     :root {

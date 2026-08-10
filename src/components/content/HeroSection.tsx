@@ -118,7 +118,7 @@ export function HeroSection({
 
   if (isLoading || !currentContent) {
     return (
-      <div className="relative h-[68svh] min-h-[380px] max-h-[640px] md:h-[60vh] md:min-h-[480px] md:max-h-[640px] bg-black">
+      <div className="relative h-[72svh] min-h-[400px] max-h-[720px] md:h-[60vh] md:min-h-[480px] md:max-h-[640px] bg-black -mt-[var(--app-top-inset)] pt-[var(--app-top-inset)] md:mt-0 md:pt-0">
         <div className="absolute inset-0 skeleton" />
       </div>
     );
@@ -151,8 +151,8 @@ export function HeroSection({
     (mediaType === 'tv' ? 'Novos episódios toda semana' : 'Disponível agora');
 
   return (
-    <section className="relative z-20 w-full h-[68svh] md:h-[60vh] min-h-[380px] md:min-h-[480px] max-h-[640px] md:max-h-[640px] overflow-hidden bg-black">
-      {/* Backdrop */}
+    <section className="relative z-20 w-full h-[72svh] md:h-[60vh] min-h-[400px] md:min-h-[480px] max-h-[720px] md:max-h-[640px] overflow-hidden bg-black md:mt-0 -mt-[var(--app-top-inset)] pt-[var(--app-top-inset)]">
+      {/* Backdrop — ancorado no topo no celular para não sobrar faixa preta */}
       <div
         className={cn(
           'absolute inset-0 transition-opacity duration-500',
@@ -163,17 +163,17 @@ export function HeroSection({
           <img
             src={backdropUrl}
             alt={title}
-            className="w-full h-full object-cover object-top md:object-[center_20%]"
+            className="hero-backdrop-img w-full h-full object-cover object-[center_0%] md:object-[center_20%]"
           />
         ) : (
           <div className="w-full h-full bg-[#111]" />
         )}
       </div>
 
-      {/* Gradientes */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black via-black/50 to-transparent" />
-      <div className="absolute inset-0 z-[1] bg-gradient-to-r from-black via-black/70 to-transparent md:via-black/55 md:to-transparent" />
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/60 via-transparent to-transparent" />
+      {/* Gradientes — topo mais leve no mobile para não criar faixa preta */}
+      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black via-black/55 to-transparent" />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-r from-black/90 via-black/45 to-transparent md:from-black md:via-black/55 md:to-transparent" />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/25 via-transparent to-transparent md:from-black/60" />
 
       {/* Conteúdo — alinhado à esquerda, parte inferior */}
       <div className="relative z-20 h-full flex items-end">

@@ -94,7 +94,7 @@ export function ContentCard({
               src={imageUrl}
               alt={title}
               className={cn(
-                'w-full h-full object-cover object-top transition-opacity duration-200',
+                'w-full h-full object-cover object-[center_top] transition-opacity duration-200',
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               )}
               loading="lazy"
