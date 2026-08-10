@@ -115,7 +115,7 @@ export function BrandTabs({ overlay = false }: BrandTabsProps) {
       className={cn(
         'z-50 hidden md:flex items-center justify-center pointer-events-none',
         overlay
-          ? 'absolute top-4 left-0 right-0 px-5 lg:px-7'
+          ? 'fixed top-0 left-0 right-0 pt-4 px-5 lg:px-7'
           : 'sticky top-0 pt-4 pb-3 px-5 lg:px-7 bg-gradient-to-b from-black via-black/80 to-transparent'
       )}
     >

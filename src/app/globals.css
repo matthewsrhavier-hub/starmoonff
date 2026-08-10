@@ -247,13 +247,13 @@
       --app-top-inset: calc(env(safe-area-inset-top, 0px) + 1.25rem);
     }
 
+    /* Com topbar fixed, o inset fica só na barra — sem padding duplo no body */
     body {
-      padding-top: var(--app-top-inset);
+      padding-top: 0;
     }
 
-    /* Evita somar duas vezes no header mobile (body já reservou o espaço) */
     .sm-mobile-topbar {
-      padding-top: 0.65rem !important;
+      padding-top: var(--app-top-inset) !important;
     }
   }
 
